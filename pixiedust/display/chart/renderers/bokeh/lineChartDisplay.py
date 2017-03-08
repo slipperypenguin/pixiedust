@@ -19,43 +19,13 @@ from pixiedust.display.chart.colorManager import Colors
 from .bokehBaseDisplay import BokehBaseDisplay
 from pixiedust.utils import Logger
 from bokeh.charts import Line
-from bokeh.palettes import Spectral11
 from bokeh.plotting import figure
+import numpy as np
+import sys
 
 @PixiedustRenderer(id="lineChart")
 @Logger()
 class LineChartRenderer(BokehBaseDisplay):
-    # def supportsAggregation(self, handlerId):
-    #     return False
-
-    def createBokehChart2(self):
-        keyFields = self.getKeyFields()
-        valueFields = self.getValueFields()
-        data = self.getWorkingPandasDataFrame()
-        subplots = self.options.get("lineChartType", "grouped") == "subplots"
-        clusterby = self.options.get("clusterby")
-
-        figs = []
-
-        if clusterby is None:
-            if subplots:
-                for i,valueField in enumerate(valueFields):
-                    figs.append(Line(data, x = keyFields[0], y=valueField, color = Colors.hexRGB( 1.*i/2 ), legend=self.showLegend(), plot_width=int(800/len(valueFields))))
-            else:
-                figs.append(Line(data, x = keyFields[0], y=valueFields, color=valueFields, legend=self.showLegend()))
-        else:
-            if subplots:
-                self.addMessage("Warning: 'Cluster By' ignored when you have multiple Value Fields but subplots options selected")
-                for i, valueField in enumerate(valueFields):
-                    figs.append(Line(data, x = keyFields[0], y=valueField, color = Colors.hexRGB( 1.*i/2 ), legend=self.showLegend(), plot_width=int(800/len(valueFields))))
-            else:
-                if len(valueFields) > 1:
-                    self.addMessage("Warning: 'Cluster By' ignored when you have multiple Value Fields but subplots option is not selected")
-                else:
-                    self.addMessage("Warning: 'Cluster By' ignored when grouped option with multiple Value Fields is selected")
-                figs.append(Line(data, x = keyFields[0], y=valueFields, color=valueFields, legend=self.showLegend()))
-        return figs
-
     def isSubplot(self):
         return self.options.get("lineChartType", "grouped") == "subplots"
 
@@ -72,28 +42,44 @@ class LineChartRenderer(BokehBaseDisplay):
         valueFields = self.getValueFields()
         clusterby = self.options.get("clusterby")
         subplots = self.isSubplot()
+        workingPDF = self.getWorkingPandasDataFrame().copy()
+
+        for index, row in workingPDF.iterrows():
+            for k in keyFields:
+                if isinstance(row[k], str if sys.version >= '3' else basestring):
+                    row[k] = row[k].replace(':', '.')
+            workingPDF.loc[index] = row
 
         charts=[]
         if clusterby is not None and (subplots or len(valueFields)<=1):
             subplots = subplots if len(valueFields)==1 or subplots else False
-            if not subplots:
-                fig = figure()
-                charts.append(fig)
             for j, valueField in enumerate(valueFields):
-                pivot = self.getWorkingPandasDataFrame().pivot(
+                pivot = workingPDF.pivot(
                     index=keyFields[0], columns=clusterby, values=valueField
                 )
+
+                if not subplots:
+                    fig = figure(x_range=pivot.index.values.tolist() if not np.issubdtype(pivot.index.dtype, np.number) else None)
+                    charts.append(fig)
                 for i,col in enumerate(pivot.columns[:10]): #max 10
                     if subplots:
-                        charts.append( Line(pivot[str(col)], color=Colors.hexRGB( 1.*i/2 ), ylabel=valueField, xlabel=keyFields[0], legend=self.showLegend()))
+                        charts.append( 
+                            Line(
+                                pivot[col].values, color=Colors.hexRGB( 1.*i/2 ), ylabel=valueField, xlabel=keyFields[0], legend=False, 
+                                title="{0} = {1}".format(clusterby, pivot.columns[i])
+                            )
+                        )
                     else:
-                        fig.line(x = pivot.index.values, y = pivot[str(col)].values, color = Colors.hexRGB( 1.*i/2 ), legend=col if self.showLegend() else None)
+                        xValues = pivot.index.values.tolist()
+                        if not np.issubdtype(pivot.index.dtype, np.number):
+                            xValues = range(1, len(xValues)+1)
+                        fig.line(x = xValues, y = pivot[col].values, color = Colors.hexRGB( 1.*i/2 ), legend=str(col) if self.showLegend() else None)
         else:
             if subplots:
                 for i,valueField in enumerate(valueFields):
-                    charts.append(Line(self.getWorkingPandasDataFrame(), x = keyFields[0], y=valueField, color = Colors.hexRGB( 1.*i/2 ), legend=self.showLegend(), plot_width=int(800/len(valueFields))))
+                    charts.append(Line(workingPDF, x = keyFields[0], y=valueField, color = Colors.hexRGB( 1.*i/2 ), legend=self.showLegend(), plot_width=int(800/len(valueFields))))
             else:
-                charts.append(Line(self.getWorkingPandasDataFrame(), x = keyFields[0], y=valueFields, color=valueFields, legend=self.showLegend()))
+                charts.append(Line(workingPDF, x = keyFields[0], y=valueFields, color=valueFields, legend=self.showLegend()))
 
             if clusterby is not None:
                 self.addMessage("Warning: 'Cluster By' ignored when grouped option with multiple Value Fields is selected")
