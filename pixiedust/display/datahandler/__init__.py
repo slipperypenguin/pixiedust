@@ -1,12 +1,12 @@
 # -------------------------------------------------------------------------------
 # Copyright IBM Corp. 2017
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an 'AS IS' BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,11 @@ from pixiedust.utils.environment import Environment
 from pixiedust.display.streaming import StreamingDataAdapter
 import pixiedust.utils.dataFrameMisc as dataFrameMisc
 from .jsonDataHandler import JSONDataHandler
+from .geoJsonDataHandler import GeoJSONDataHandler
 from .pandasDataFrameHandler import PandasDataFrameDataHandler
+import json
+import geojson
+
 if Environment.hasSpark:
     from .pysparkDataFrameHandler import PySparkDataFrameDataHandler
 
@@ -32,7 +36,11 @@ def getDataHandler(options, entity):
     elif dataFrameMisc.isPandasDataFrame(entity):
         return PandasDataFrameDataHandler(options, entity)
     elif isinstance(entity, dict) or isArrayOfDict(entity):
-        return JSONDataHandler(options, entity)
+        geoEntity = geojson.loads(json.dumps(entity))
+        if geoEntity.is_valid:
+            return GeoJSONDataHandler(options, geoEntity)
+        else:
+            return JSONDataHandler(options, entity)
     elif isinstance(entity, StreamingDataAdapter):
         return entity.getDisplayDataHandler(options, entity)
 

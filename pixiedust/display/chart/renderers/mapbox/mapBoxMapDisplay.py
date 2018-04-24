@@ -1,12 +1,12 @@
 # -------------------------------------------------------------------------------
 # Copyright IBM Corp. 2017
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an 'AS IS' BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,7 @@ import uuid
 import requests
 
 def defaultJSONEncoding(o):
-    if isinstance(o, numpy.integer): 
+    if isinstance(o, numpy.integer):
         return int(o)
     raise TypeError
 
@@ -59,7 +59,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
     def getChartContext(self, handlerId):
         diagTemplate = MapBoxBaseDisplay.__module__ + ":mapViewOptionsDialogBody.html"
         return (diagTemplate, {})
-    
+
     def doRenderChart(self):
         mbtoken = self.options.get("mapboxtoken")
         if not mbtoken:
@@ -81,23 +81,16 @@ class MapViewDisplay(MapBoxBaseDisplay):
     def getExtraFields(self):
         return self.getNonNumericValueFields()
 
-    def renderMapView(self, mbtoken):
-
-        # generate a working pandas data frame using the fields we need
-        df = self.getWorkingPandasDataFrame()
+    def convertToGeoJSON(self):
         keyFields = self.getKeyFields()
-
-        # geomType can be either 0: (Multi)Point, 1: (Multi)LineString, 2: (Multi)Polygon
-        geomType = 0
-        bins = []
 
         if len(keyFields)>0:
             if len(keyFields)==1:
-                geomType = -1 #unknown as of yet
+                self.geomType = -1 #unknown as of yet
             else:
                 lonFieldIdx = 0
                 latFieldIdx = 1
-                if keyFields[0] == self.getLatField(): 
+                if keyFields[0] == self.getLatField():
                     lonFieldIdx = 1
                     latFieldIdx = 0
                 min = [df[keyFields[lonFieldIdx]].min(), df[keyFields[latFieldIdx]].min()]
@@ -105,7 +98,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
                 self.options["mapBounds"] = json.dumps([min,max], default=defaultJSONEncoding)
 
         valueFields = self.getValueFields()
-        
+
         #check if we have a preserveCols
         preserveCols = self.options.get("preserveCols", None)
         preserveCols = [a for a in preserveCols.split(",") if a not in keyFields and a not in valueFields] if preserveCols is not None else []
@@ -123,19 +116,42 @@ class MapViewDisplay(MapBoxBaseDisplay):
                         'properties':{},
                         'geometry':{'type':'Point',
                                     'coordinates':[]}}
-            
-            if geomType == 0:
+
+            if self.geomType == 0:
                 feature['geometry']['coordinates'] = [row[lonFieldIdx+1], row[latFieldIdx+1]]
             else:
                 geomIdx = df.columns.get_loc(keyFields[0])+1
                 feature['geometry'] = json.loads(row[geomIdx])
-                
+
             for idx, valueFieldIdx in enumerate(valueFieldIdxs):
                 feature['properties'][allProps[idx]] = row[valueFieldIdx+1]
             features.append(feature)
 
+        return {'type':'FeatureCollection', 'features':features}
+
+    def renderMapView(self, mbtoken):
+        # geomType can be either 0: (Multi)Point, 1: (Multi)LineString, 2: (Multi)Polygon
+        self.geomType = 0
+        bins = []
+
+        # generate a working pandas data frame using the fields we need
+        if get_attr(self.dataHandler, 'getWorkingPandasDataFrame'):
+            df = self.getWorkingPandasDataFrame()
+            pygeojson = self.convertToGeoJSON(df)
+        elif get_attr(self.dataHandler, 'getWorkingGeoJSON'):
+            gjson = self.getWorkingGeoJSON()
+            if isinstance(gjson, geojson.feature.FeatureCollection):
+                pygeojson = gjson
+            else:
+                raise TypeError("GeoJSON must be a FeatureCollection")
+        else:
+            raise TypeError("Datahandler has neither 'getWorkingPandasDataFrame' nor 'getWorkingGeoJSON' as attributes.")
+
+        valueFields = self.getValueFields()
+
+        features = pygeojson["features"]
+        geomType = self.geomType
         if len(features)>0:
-            pygeojson = {'type':'FeatureCollection', 'features':features}
             self.options["mapData"] = json.dumps(pygeojson,default=defaultJSONEncoding)
 
             # Now let's figure out whether we have Line or Polygon data, if it wasn't already found to be Point
@@ -146,7 +162,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
                     geomType = 2
                 else:
                     geomType = -1
-                
+
             #### build up the map style
 
             # basic color
@@ -174,7 +190,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
                 mapValueField = valueFields[0]
                 self.options["mapValueField"] = mapValueField
 
-            if not self.options.get("kind"): 
+            if not self.options.get("kind"):
                 self.options["kind"] = "choropleth-cluster"
 
             # if there's a numeric value field and type is not 'simple', paint the data as a choropleth map
@@ -218,24 +234,24 @@ class MapViewDisplay(MapBoxBaseDisplay):
                     # paint['circle-opacity'] = 0.65
                     paint['circle-color'] = {"property":mapValueField}
                     paint['circle-color']['stops'] = []
-                    for bin in bins: 
+                    for bin in bins:
                         paint['circle-color']['stops'].append([bin[0], bin[1]])
                     paint['circle-radius'] = 12
 
 
             self.options["mapStyle"] = json.dumps(paint,default=defaultJSONEncoding)
-            
+
         w = self.getPreferredOutputWidth()
         h = self.getPreferredOutputHeight()
 
         # handle custom layers
         userlayers = []
-        l = (ShellAccess,ShellAccess) 
+        l = (ShellAccess,ShellAccess)
         papp = self.options.get("nostore_pixieapp")
         if papp is not None and ShellAccess[papp] is not None:
             l = (ShellAccess[papp], dir(ShellAccess[papp]))
         for key in [a for a in l[1] if not callable(getattr(l[0], a)) and not a.startswith("_")]:
-            v = getattr(l[0],key)            
+            v = getattr(l[0],key)
             if isinstance(v, dict) and "maptype" in v and v["maptype"].lower() == "mapbox" and "source" in v and "type" in v["source"] and v["source"]["type"] == "geojson" and "id" in v and "data" in v["source"]:
                 gj = geojson.loads(json.dumps(v["source"]["data"]))
                 isvalid = True
