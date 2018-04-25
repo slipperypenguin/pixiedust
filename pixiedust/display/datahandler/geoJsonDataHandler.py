@@ -28,6 +28,21 @@ class GeoJSONDataHandler(BaseDataHandler):
         super(GeoJSONDataHandler, self).__init__(options, entity)
 
 
-# def getFieldNames(self, expandNested=False):
-#     return dataFrameMisc.getFieldNames(PandasDataFrameAdapter(self.entity), expandNested)
-#
+    def getFieldNames(self, expandNested=False):
+        fieldNames = set();
+        for feature in self.entity['features']:
+            if 'properties' in feature:
+                print(feature['properties'].keys())
+                fieldNames.update(feature['properties'].keys())
+        return fieldNames
+
+    def isNumericField(self, fieldName):
+        if fieldName in self.getFieldNames():
+            for feature in self.entity['features']:
+                if fieldName in feature:
+                    print(feature[fieldName])
+                    if not isinstance(feature[fieldName], (int, long, float, complex)):
+                        return False
+            return True
+        else:
+            raise ValueError("Property {} does not existing in the GeoJSON".format(fieldName))
