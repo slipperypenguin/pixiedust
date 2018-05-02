@@ -300,6 +300,7 @@ class Display(with_metaclass(ABCMeta)):
         return args
 
     def renderTemplate(self, templateName, **kwargs):
+        print(templateName)
         return self.env.getTemplate(templateName).render(self._getTemplateArgs(**kwargs))
 
     """

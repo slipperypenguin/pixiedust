@@ -81,7 +81,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
     def getExtraFields(self):
         return self.getNonNumericValueFields()
 
-    def convertToGeoJSON(self):
+    def convertToGeoJSON(self, df):
         keyFields = self.getKeyFields()
 
         if len(keyFields)>0:
@@ -135,12 +135,13 @@ class MapViewDisplay(MapBoxBaseDisplay):
         bins = []
 
         # generate a working pandas data frame using the fields we need
-        if get_attr(self.dataHandler, 'getWorkingPandasDataFrame'):
-            df = self.getWorkingPandasDataFrame()
+        if hasattr(self.dataHandler, 'getWorkingPandasDataFrame'):
+            df = self.dataHandler.getWorkingPandasDataFrame()
             pygeojson = self.convertToGeoJSON(df)
-        elif get_attr(self.dataHandler, 'getWorkingGeoJSON'):
-            gjson = self.getWorkingGeoJSON()
-            if isinstance(gjson, geojson.feature.FeatureCollection):
+        elif hasattr(self.dataHandler, 'getWorkingGeoJSON'):
+            gjson = self.dataHandler.getWorkingGeoJSON()
+            print(gjson)
+            if gjson['type'] == 'FeatureCollection':
                 pygeojson = gjson
             else:
                 raise TypeError("GeoJSON must be a FeatureCollection")
@@ -151,7 +152,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
 
         features = pygeojson["features"]
         geomType = self.geomType
-        if len(features)>0:
+        if len(features) > 0:
             self.options["mapData"] = json.dumps(pygeojson,default=defaultJSONEncoding)
 
             # Now let's figure out whether we have Line or Polygon data, if it wasn't already found to be Point
@@ -183,7 +184,7 @@ class MapViewDisplay(MapBoxBaseDisplay):
                 paint['circle-opacity'] = 0.25
                 if self.options.get("coloropacity"):
                     paint['circle-opacity'] = float(self.options.get("coloropacity")) / 100
-                if (self.options.get("kind") and self.options.get("kind").find("cluster") >= 0):
+                if self.options.get("kind") and self.options.get("kind").find("cluster") >= 0:
                     paint['circle-opacity'] = 1.0
 
             if len(valueFields) > 0:

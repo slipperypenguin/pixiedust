@@ -408,43 +408,44 @@ class BaseChartDisplay(with_metaclass(ABCMeta, ChartDisplay)):
                 return
         
         # render
-        try:
-            self.dialogBody = self.renderTemplate(dialogTemplate, **dialogOptions)
+        #try:
+        print("hey there:", handlerId, self.getDialogInfo(handlerId))
+        self.dialogBody = self.renderTemplate(dialogTemplate, **dialogOptions)
 
-            # validate if we can render
-            canRender, errorMessage = self.canRenderChart()
-            if canRender == False:
-                raise Exception(errorMessage)
+        # validate if we can render
+        canRender, errorMessage = self.canRenderChart()
+        if canRender == False:
+            raise Exception(errorMessage)
 
-            # set the keyFields and valueFields options if this is the first time
-            # do this after call to canRenderChart as some charts may need to know that they have not been set
-            setKeyFields = self.options.get("keyFields") is None
-            setValueFields = self.options.get("valueFields") is None
-            if setKeyFields and len(keyFields) > 0:
-                self.options["keyFields"] = ",".join(keyFields)
-            if setValueFields and len(valueFields) > 0:
-                self.options["valueFields"] = ",".join(valueFields)        
+        # set the keyFields and valueFields options if this is the first time
+        # do this after call to canRenderChart as some charts may need to know that they have not been set
+        setKeyFields = self.options.get("keyFields") is None
+        setValueFields = self.options.get("valueFields") is None
+        if setKeyFields and len(keyFields) > 0:
+            self.options["keyFields"] = ",".join(keyFields)
+        if setValueFields and len(valueFields) > 0:
+            self.options["valueFields"] = ",".join(valueFields)
 
-            chartFigure = self.doRenderChart()
-            if self.options.get("debugFigure", None):
-                self.debug(chartFigure)
-            if self.options.get("nostore_figureOnly", None):
-                self._addHTML(chartFigure)
-            else:
-                self._addHTMLTemplate("renderer.html", chartFigure=chartFigure, optionsDialogBody=self.dialogBody, 
-                    optionsTitle=optionsTitle, **dialogOptions)
-        except Exception as e:
-            self.exception("Unexpected error while trying to render BaseChartDisplay")
-            errorHTML = """
-                <div style="min-height: 50px;">
-                    <div style="color: red;position: absolute;bottom: 0;left: 0;">{0}</div>
-                </div>
-            """.format(str(e))
-            if self.options.get("nostore_figureOnly", None):
-                self._addHTML(errorHTML)
-            else:
-                self._addHTMLTemplate("renderer.html", chartFigure=errorHTML, optionsDialogBody=self.dialogBody, 
-                    optionsTitle=optionsTitle, **dialogOptions)
+        chartFigure = self.doRenderChart()
+        if self.options.get("debugFigure", None):
+            self.debug(chartFigure)
+        if self.options.get("nostore_figureOnly", None):
+            self._addHTML(chartFigure)
+        else:
+            self._addHTMLTemplate("renderer.html", chartFigure=chartFigure, optionsDialogBody=self.dialogBody,
+                optionsTitle=optionsTitle, **dialogOptions)
+        # except Exception as e:
+        #     self.exception("Unexpected error while trying to render BaseChartDisplay")
+        #     errorHTML = """
+        #         <div style="min-height: 50px;">
+        #             <div style="color: red;position: absolute;bottom: 0;left: 0;">{0}</div>
+        #         </div>
+        #     """.format(str(e))
+        #     if self.options.get("nostore_figureOnly", None):
+        #         self._addHTML(errorHTML)
+        #     else:
+        #         self._addHTMLTemplate("renderer.html", chartFigure=errorHTML, optionsDialogBody=self.dialogBody,
+        #             optionsTitle=optionsTitle, **dialogOptions)
 
     def logStuff(self):
         try:

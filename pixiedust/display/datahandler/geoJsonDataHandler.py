@@ -27,13 +27,15 @@ class GeoJSONDataHandler(BaseDataHandler):
             raise TypeError("Entity is not valid GeoJSON.")
         super(GeoJSONDataHandler, self).__init__(options, entity)
 
+    def getWorkingGeoJSON(self):
+        return self.entity
 
     def getFieldNames(self, expandNested=False):
-        fieldNames = set();
+        fieldNames = []
         for feature in self.entity['features']:
             if 'properties' in feature:
                 print(feature['properties'].keys())
-                fieldNames.update(feature['properties'].keys())
+                fieldNames.extend(feature['properties'].keys())
         return fieldNames
 
     def isNumericField(self, fieldName):
@@ -46,3 +48,14 @@ class GeoJSONDataHandler(BaseDataHandler):
             return True
         else:
             raise ValueError("Property {} does not existing in the GeoJSON".format(fieldName))
+
+    def count(self):
+        return len(self.getFieldNames())
+
+    def add_numerical_column(self):
+        """
+        Add a dummy numerical column to the underlying dataframe
+        """
+        self.entity = self.entity.copy()
+        self.entity["pd_count"] = 1
+        return "pd_count"

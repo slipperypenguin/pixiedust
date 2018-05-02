@@ -25,10 +25,12 @@ import geojson
 if Environment.hasSpark:
     from .pysparkDataFrameHandler import PySparkDataFrameDataHandler
 
+
 def isArrayOfDict(entity):
     if not isinstance(entity, list):
         return False
     return all([isinstance(x, dict) for x in entity])
+
 
 def getDataHandler(options, entity):
     if dataFrameMisc.isPySparkDataFrame(entity):
